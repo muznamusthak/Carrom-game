@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Carrom Game</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #222;
+            color: white;
+            text-align: center;
+        }
+
+        .game-container {
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 15px;
+        }
+
+        .score-board {
+            width: 700px;
+            max-width: 95%;
+            margin: auto;
+            display: flex;
+            justify-content: space-between;
+            background: #333;
+            padding: 12px 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+
+        #carromBoard {
+            width: 700px;
+            max-width: 95vw;
+            height: auto;
+            background: #d99a55;
+            border: 15px solid #5b3018;
+            border-radius: 8px;
+            box-shadow: 0 0 25px black;
+            cursor: crosshair;
+        }
+
+        #message {
+            margin: 15px;
+            font-size: 20px;
+        }
+
+        button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            background: #f5b041;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #f39c12;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="game-container">
+
+        <h1>🎯 Carrom Game</h1>
+
+        <div class="score-board">
+            <span>Player 1: <b id="score1">0</b></span>
+            <span>Player 2: <b id="score2">0</b></span>
+        </div>
+
+        <canvas id="carromBoard" width="700" height="700"></canvas>
+
+        <p id="message">Player 1's turn</p>
+
+        <button onclick="resetGame()">🔄 New Game</button>
+
+    </div>
+
+
+    <script>
+
+        const canvas = document.getElementById("carromBoard");
+        const ctx = canvas.getContext("2d");
+
+        const score1Element = document.getElementById("score1");
+        const score2Element = document.getElementById("score2");
+        const message = document.getElementById("message");
+
+        let player = 1;
+        let score1 = 0;
+        let score2 = 0;
+
+        const center = {
+            x: canvas.width / 2,
+            y: canvas.height / 2
+        };
+
+        let striker = {
+            x: 350,
+            y: 600,
+            radius: 15,
+            vx: 0,
+            vy: 0,
+            moving: false
+        };
+
+        let coins = [];
+
+
+        function createCoins() {
+
+            coins = [];
+
+            const colors = [
+                "#111",
+                "#eee",
+                "#111",
+                "#eee",
+                "#111",
+                "#eee",
+                "#111",
+                "#eee"
+            ];
+
+            for (let i = 0; i < 8; i++) {
+
+                const angle = (Math.PI * 2 / 8) * i;
+
+                coins.push({
+                    x: center.x + Math.cos(angle) * 25,
+                    y: center.y + Math.sin(angle) * 25,
+                    radius: 11,
+                    color: colors[i],
+                    vx: 0,
+                    vy: 0,
+                    pocketed: false
+                });
+            }
+
+            // Queen
+
+            coins.push({
+                x: center.x,
+                y: center.y,
+                radius: 12,
+                color: "red",
+                vx: 0,
+                vy: 0,
+                pocketed: false
+            });
+        }
+
+
+        function drawBoard() {
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Board
+
+            ctx.fillStyle = "#d99a55";
+
+            ctx.fillRect(
+                0,
+                0,
+                canvas.width,
+                canvas.height
+            );
+
+
+            // Inner playing area
+
+            ctx.strokeStyle = "#4b2412";
+            ctx.lineWidth = 4;
+
+            ctx.strokeRect(
+                45,
+                45,
+                610,
+                610
+            );
+
+
+            // Center circle
+
+            ctx.beginPath();
+
+            ctx.arc(
+                center.x,
+                center.y,
+                55,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.strokeStyle = "#7b3f20";
+            ctx.lineWidth = 3;
+
+            ctx.stroke();
+
+
+            // Center point
+
+            ctx.beginPath();
+
+            ctx.arc(
+                center.x,
+                center.y,
+                5,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.fillStyle = "#7b3f20";
+
+            ctx.fill();
+
+
+            // Pockets
+
+            const pockets = [
+                [45, 45],
+                [655, 45],
+                [45, 655],
+                [655, 655]
+            ];
+
+            pockets.forEach(([x, y]) => {
+
+                ctx.beginPath();
+
+                ctx.arc(
+                    x,
+                    y,
+                    22,
+                    0,
+                    Math.PI * 2
+                );
+
+                ctx.fillStyle = "#111";
+
+                ctx.fill();
+            });
+
+
+            // Baseline
+
+            ctx.strokeStyle = "#7b3f20";
+            ctx.lineWidth = 5;
+
+
+            ctx.beginPath();
+
+            ctx.moveTo(130, 600);
+            ctx.lineTo(570, 600);
+
+            ctx.stroke();
+
+
+            ctx.beginPath();
+
+            ctx.moveTo(130, 570);
+            ctx.lineTo(570, 570);
+
+            ctx.stroke();
+
+
+            // Striker
+
+            drawCircle(
+                striker.x,
+                striker.y,
+                striker.radius,
+                "#3498db"
+            );
+
+
+            // Coins
+
+            coins.forEach(coin => {
+
+                if (!coin.pocketed) {
+
+                    drawCircle(
+                        coin.x,
+                        coin.y,
+                        coin.radius,
+                        coin.color
+                    );
+                }
+            });
+        }
+
+
+        function drawCircle(x, y, radius, color) {
+
+            ctx.beginPath();
+
+            ctx.arc(
+                x,
+                y,
+                radius,
+                0,
+                Math.PI * 2
+            );
+
+            ctx.fillStyle = color;
+
+            ctx.fill();
+
+            ctx.strokeStyle = "#333";
+
+            ctx.lineWidth = 2;
+
+            ctx.stroke();
+        }
+
+
+        // Shoot striker
+
+        canvas.addEventListener("click", function(event) {
+
+            if (striker.moving) return;
+
+            const rect = canvas.getBoundingClientRect();
+
+            const mouseX =
+                (event.clientX - rect.left) *
+                (canvas.width / rect.width);
+
+            const mouseY =
+                (event.clientY - rect.top) *
+                (canvas.height / rect.height);
+
+
+            const dx = mouseX - striker.x;
+            const dy = mouseY - striker.y;
+
+
+            const length =
+                Math.sqrt(
+                    dx * dx +
+                    dy * dy
+                );
+
+
+            if (length < 10) return;
+
+
+            const power = 12;
+
+
+            striker.vx =
+                (dx / length) * power;
+
+            striker.vy =
+                (dy / length) * power;
+
+
+            striker.moving = true;
+        });
+
+
+        function update() {
+
+            if (striker.moving) {
+
+                striker.x += striker.vx;
+                striker.y += striker.vy;
+
+
+                striker.vx *= 0.985;
+                striker.vy *= 0.985;
+
+
+                // Wall collision
+
+                if (
+                    striker.x - striker.radius < 45 ||
+                    striker.x + striker.radius > 655
+                ) {
+
+                    striker.vx *= -1;
+                }
+
+
+                if (
+                    striker.y - striker.radius < 45 ||
+                    striker.y + striker.radius > 655
+                ) {
+
+                    striker.vy *= -1;
+                }
+
+
+                // Coin collision
+
+                coins.forEach(coin => {
+
+                    if (coin.pocketed) return;
+
+
+                    const dx =
+                        coin.x - striker.x;
+
+                    const dy =
+                        coin.y - striker.y;
+
+
+                    const dist =
+                        Math.sqrt(
+                            dx * dx +
+                            dy * dy
+                        );
+
+
+                    if (
+                        dist <
+                        striker.radius + coin.radius
+                    ) {
+
+                        const angle =
+                            Math.atan2(dy, dx);
+
+
+                        coin.vx =
+                            Math.cos(angle) * 7;
+
+                        coin.vy =
+                            Math.sin(angle) * 7;
+
+
+                        striker.vx *= 0.8;
+                        striker.vy *= 0.8;
+                    }
+                });
+
+
+                if (
+                    Math.abs(striker.vx) < 0.1 &&
+                    Math.abs(striker.vy) < 0.1
+                ) {
+
+                    striker.vx = 0;
+                    striker.vy = 0;
+
+                    striker.moving = false;
+
+                    nextTurn();
+                }
+            }
+
+
+            // Move coins
+
+            coins.forEach(coin => {
+
+                if (coin.pocketed) return;
+
+
+                coin.x += coin.vx;
+                coin.y += coin.vy;
+
+
+                coin.vx *= 0.97;
+                coin.vy *= 0.97;
+
+
+                // Wall collision
+
+                if (
+                    coin.x - coin.radius < 45 ||
+                    coin.x + coin.radius > 655
+                ) {
+
+                    coin.vx *= -1;
+                }
+
+
+                if (
+                    coin.y - coin.radius < 45 ||
+                    coin.y + coin.radius > 655
+                ) {
+
+                    coin.vy *= -1;
+                }
+
+
+                checkPocket(coin);
+            });
+
+
+            drawBoard();
+
+            requestAnimationFrame(update);
+        }
+
+
+        function checkPocket(coin) {
+
+            const pockets = [
+                { x: 45, y: 45 },
+                { x: 655, y: 45 },
+                { x: 45, y: 655 },
+                { x: 655, y: 655 }
+            ];
+
+
+            pockets.forEach(pocket => {
+
+                const d =
+                    Math.sqrt(
+                        Math.pow(
+                            coin.x - pocket.x,
+                            2
+                        ) +
+                        Math.pow(
+                            coin.y - pocket.y,
+                            2
+                        )
+                    );
+
+
+                if (d < 25) {
+
+                    coin.pocketed = true;
+
+
+                    if (coin.color === "red") {
+
+                        if (player === 1) {
+                            score1 += 5;
+                        } else {
+                            score2 += 5;
+                        }
+
+                    } else {
+
+                        if (player === 1) {
+                            score1++;
+                        } else {
+                            score2++;
+                        }
+                    }
+
+
+                    updateScore();
+                }
+            });
+        }
+
+
+        function nextTurn() {
+
+            player =
+                player === 1 ? 2 : 1;
+
+
+            striker.x = 350;
+            striker.y = 600;
+
+
+            message.textContent =
+                `Player ${player}'s turn`;
+        }
+
+
+        function updateScore() {
+
+            score1Element.textContent = score1;
+            score2Element.textContent = score2;
+        }
+
+
+        function resetGame() {
+
+            score1 = 0;
+            score2 = 0;
+
+            player = 1;
+
+
+            striker.x = 350;
+            striker.y = 600;
+
+
+            striker.vx = 0;
+            striker.vy = 0;
+
+            striker.moving = false;
+
+
+            createCoins();
+
+            updateScore();
+
+
+            message.textContent =
+                "Player 1's turn";
+        }
+
+
+        // Start game
+
+        createCoins();
+
+        drawBoard();
+
+        update();
+
+    </script>
+
+</body>
+</html>
